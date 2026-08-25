@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "contentHash": "02cf2703a099f732ab16167b6764a2bf7224809822865f254f911600ef0c5b40",
+  "eventCodes": {
+    "BotKill": 0,
+    "BotKilled": 1,
+    "BotPosition": 2,
+    "Kill": 3,
+    "Killed": 4,
+    "KilledByStorm": 5,
+    "Loot": 6,
+    "Position": 7
+  },
+  "coordinateScale": 100,
+  "source": {
+    "files": 1243,
+    "rows": 89104
+  },
+  "processed": {
+    "rows": 87599,
+    "journeys": 1242,
+    "matches": 796,
+    "players": 339,
+    "dates": [
+      "2026-02-09",
+      "2026-02-10",
+      "2026-02-11",
+      "2026-02-12",
+      "2026-02-13",
+      "2026-02-14"
+    ]
+  },
+  "dropped": {
+    "duplicateFileRows": 88,
+    "duplicateRows": 1417
+  },
+  "dataQuality": [
+    {
+      "category": "duplicate_file",
+      "severity": "warning",
+      "count": 1,
+      "detail": "cfa03e9f-81f6-41ef-a0fa-30c7e830f4ed_ac049b28-8116-4ff1-9e60-4be0537b8cc9.nakama-0 shipped in 2 day folders, byte-identical; dropped 88 rows"
+    },
+    {
+      "category": "duplicate_rows",
+      "severity": "warning",
+      "count": 1417,
+      "detail": "exact duplicates across all 8 columns, by event: {'Loot': 1234, 'Position': 147, 'BotKill': 34, 'BotKilled': 2}"
+    },
+    {
+      "category": "day_folder_date_mismatch",
+      "severity": "warning",
+      "count": 342,
+      "detail": "5 matches straddle or precede their folder's UTC day; folder->derived counts {('February_11', '2026-02-10'): 328, ('February_10', '2026-02-09'): 14}. Derived date is authoritative; folder kept as provenance."
+    },
+    {
+      "category": "actor_id_conflict",
+      "severity": "warning",
+      "count": 17,
+      "detail": "numeric user_id emitting human vocabulary; user_ids ['1379', '1402', '1429']. Movement vocabulary wins; id_format retained for reconstruction."
+    },
+    {
+      "category": "partial_roster_matches",
+      "severity": "warning",
+      "count": 743,
+      "detail": "93.3% of matches contain exactly one journey; a full roster cannot be reconstructed for them"
+    },
+    {
+      "category": "journey_with_single_sample",
+      "severity": "warning",
+      "count": 3,
+      "detail": "fewer than 2 movement samples; no path can be drawn, point only"
+    },
+    {
+      "category": "minimap_not_square",
+      "severity": "warning",
+      "count": 1,
+      "detail": "GrandRift source is 2160x2158; aspect preserved in the delivered image and carried in maps.json"
+    }
+  ]
+}

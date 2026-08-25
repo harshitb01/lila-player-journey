@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+/* Dark-only by design: this tool sits beside an engine editor and the minimap
+   artwork is dark. See UX_SPEC.md §16. */
+@theme {
+  --color-surface-0: #0b0d10;
+  --color-surface-1: #12151a;
+  --color-surface-2: #191d24;
+  --color-surface-3: #232830;
+  --color-edge: #2c323c;
+  --color-ink-0: #e8ecf2;
+  --color-ink-1: #9aa4b2;
+  --color-ink-2: #6b7480;
+  --color-accent: #4da3ff;
+  --color-human: #f2f5f9;
+  --color-bot: #7c8697;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-surface-0);
+  color: var(--color-ink-0);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-edge); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4150; }
