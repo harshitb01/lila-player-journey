@@ -4,7 +4,7 @@ A level-design tool that turns raw match telemetry from **LILA BLACK** into an
 interactive map view — player routes, combat, deaths, loot, and heatmaps — filterable by
 map, date, match, and actor, with match playback.
 
-**Live demo:** https://lila-player-journey-kwr0v2hoh-harry-d818.vercel.app/
+**Live demo:** https://lila-player-journey-eosin.vercel.app/
 
 ## Key capabilities
 
