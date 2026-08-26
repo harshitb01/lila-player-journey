@@ -62,10 +62,16 @@ export function Legend() {
               <span key={i} className="flex-1" style={{ background: s.css }} />
             ))}
           </div>
-          <div className="mb-3 flex justify-between text-[10px] text-ink-2">
+          {/*
+            The ramp is normalised to whatever is currently filtered, so the same colour
+            means different absolute counts in different selections. Saying so on the
+            axis keeps the caveat where it is read, instead of in a paragraph below.
+          */}
+          <div className="mb-1 flex justify-between text-[10px] text-ink-2">
             <span>fewer</span>
             <span>more {heatmapMode === 'traffic' ? 'time spent' : 'events'}</span>
           </div>
+          <p className="mb-3 text-[10px] text-ink-2">relative to current filter</p>
         </>
       )}
 
@@ -136,14 +142,15 @@ export function Legend() {
         </>
       )}
 
-      <p className="mt-2.5 border-t border-edge pt-2 text-[11px] leading-relaxed text-ink-2">
-        Routes are polylines through samples about 5s apart, not smoothed curves. Events
-        are positions in space and time; no killer-victim links exist in the schema.
-        {heatmapMode !== 'none' &&
-          ' Shading is relative to the current filters — an investigation aid, not a rate.'}
-      </p>
-      <p className="mt-1.5 text-[11px] text-ink-2">
-        Shift + drag the map to inspect a region.
+      {/*
+        One line, not a paragraph. The sampling caveat is already stated permanently on
+        the timeline, and the schema's missing target id on every combat tooltip — the
+        legend only needs to key what is drawn, plus the one interaction that has no
+        other affordance on the map.
+      */}
+      <p className="mt-2.5 border-t border-edge pt-2 text-[11px] text-ink-2">
+        <kbd className="rounded border border-edge bg-surface-2 px-1 font-sans">Shift</kbd>
+        {' '}+ drag to measure a region
       </p>
     </div>
   );

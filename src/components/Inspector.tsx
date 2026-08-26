@@ -85,7 +85,7 @@ export function Inspector() {
           <span className="text-ink-0">{isBot ? 'Bot' : 'Human player'}</span>
         </div>
         {journey.actorIdConflict && (
-          <p className="rounded border border-[#5a4a24] bg-[#221d13] px-2 py-1.5 text-[11px] leading-relaxed text-[#e8c46a]">
+          <p className="rounded border border-warn-edge bg-warn-bg px-2 py-1.5 text-[11px] leading-relaxed text-warn">
             This id looks like a bot id but the journey emits human events. Classified as{' '}
             <strong>human</strong> by behaviour. See the data-quality notes.
           </p>

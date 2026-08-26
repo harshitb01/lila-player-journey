@@ -6,3 +6,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .vite/
+
+# Local secrets — none are currently used by this app, kept out defensively.
+.env
+.env.local
+.env.*.local

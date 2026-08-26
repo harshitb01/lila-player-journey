@@ -31,6 +31,12 @@ import { type Rect, uvToCanvas } from './viewport';
  * are solid and slightly heavier, bots are dashed and lighter. The distinction survives
  * greyscale printing and every form of colour blindness. Hue is a secondary cue only.
  */
+/**
+ * Upper bound on event codes, so per-class marker buckets can be a flat array indexed
+ * by code (an array index in the hot loop, rather than a Map hash).
+ */
+const EVENT_CODE_SLOTS = 16;
+
 export const PATH_STYLE = {
   human: {
     stroke: '#dbe6f5',
@@ -407,25 +413,44 @@ export function drawEvents(ctx: CanvasRenderingContext2D, options: RenderOptions
   const { tracks, rect, visibleSlots, eventGroups, playbackTime } = options;
   if (!tracks || rect.width <= 0) return;
 
+  // One Path2D per enabled marker class, indexed by event code so the lookup inside the
+  // point loop is an array index rather than a hash. Previously this function made a
+  // full pass over every point for EACH marker class — six passes over ~60k points on
+  // Ambrose Valley. Bucketing in a single pass does the same work once.
+  const buckets: (Path2D | null)[] = new Array(EVENT_CODE_SLOTS).fill(null);
+  const counts: number[] = new Array(EVENT_CODE_SLOTS).fill(0);
+  const shapeFor: (((p: Path2D, x: number, y: number, r: number) => void) | null)[] =
+    new Array(EVENT_CODE_SLOTS).fill(null);
+  const radiusFor: number[] = new Array(EVENT_CODE_SLOTS).fill(0);
+  let anyEnabled = false;
   for (const spec of MARKERS_BY_Z) {
     if (!eventGroups[spec.group]) continue;
+    buckets[spec.code] = new Path2D();
+    shapeFor[spec.code] = SHAPES[spec.shape];
+    radiusFor[spec.code] = spec.radius;
+    anyEnabled = true;
+  }
+  if (!anyEnabled) return;
 
-    const path = new Path2D();
-    let count = 0;
+  for (let i = 0; i < tracks.pointCount; i++) {
+    const code = tracks.eventType[i] ?? -1;
+    const path = buckets[code];
+    if (!path) continue;
+    const slot = tracks.journeySlot[i] ?? 0;
+    if (visibleSlots && !visibleSlots[slot]) continue;
+    // Only events that have already occurred at the playhead.
+    if (playbackTime !== null && (tracks.tRel[i] ?? 0) > playbackTime) continue;
 
-    for (let i = 0; i < tracks.pointCount; i++) {
-      if (tracks.eventType[i] !== spec.code) continue;
-      const slot = tracks.journeySlot[i] ?? 0;
-      if (visibleSlots && !visibleSlots[slot]) continue;
-      // Only events that have already occurred at the playhead.
-      if (playbackTime !== null && (tracks.tRel[i] ?? 0) > playbackTime) continue;
+    const x = rect.x + (tracks.u[i] ?? 0) * rect.width;
+    const y = rect.y + (1 - (tracks.v[i] ?? 0)) * rect.height;
+    shapeFor[code]!(path, x, y, radiusFor[code]!);
+    counts[code]!++;
+  }
 
-      const x = rect.x + (tracks.u[i] ?? 0) * rect.width;
-      const y = rect.y + (1 - (tracks.v[i] ?? 0)) * rect.height;
-      SHAPES[spec.shape](path, x, y, spec.radius);
-      count++;
-    }
-    if (count === 0) continue;
+  // Stroke in ascending z so rare, high-signal classes sit above common ones.
+  for (const spec of MARKERS_BY_Z) {
+    const path = buckets[spec.code];
+    if (!path || counts[spec.code] === 0) continue;
 
     ctx.save();
     ctx.globalAlpha = spec.alpha;

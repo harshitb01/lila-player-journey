@@ -183,9 +183,10 @@ function DataQualityChip({ onOpen }: { onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="rounded border border-[#5a4a24] bg-[#221d13] px-2.5 py-1 text-[#e8c46a] hover:bg-[#2b2417]"
+      title={`${dataset.dataQuality.length} caveats affecting these numbers`}
+      className="rounded border border-warn-edge bg-warn-bg px-2.5 py-1 text-warn hover:bg-warn-edge/40"
     >
-      ⚠ {dataset.dataQuality.length} notes
+      ⚠ Data quality
     </button>
   );
 }
@@ -210,13 +211,14 @@ function ResetFilters() {
 
 export function Header({ onOpenDataQuality }: { onOpenDataQuality: () => void }) {
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 border-b border-edge bg-surface-1 px-3">
-      <span className="select-none font-semibold tracking-wide text-ink-0">LILA</span>
-      <span className="text-edge">▏</span>
+    <header className="flex h-11 shrink-0 items-center gap-4 border-b border-edge bg-surface-1 px-3">
+      {/*
+        Groups are separated by spacing and a hairline rule rather than by typographic
+        bar glyphs, which were decoration carrying no information.
+      */}
       <MapTabs />
-      <span className="text-edge">▏</span>
+      <div className="h-5 w-px shrink-0 bg-edge" aria-hidden />
       <DateFilter />
-      <span className="text-edge">▏</span>
       <ActorToggles />
       <div className="flex-1" />
       <ResetFilters />

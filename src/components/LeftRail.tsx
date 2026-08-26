@@ -4,23 +4,14 @@ import {
   GROUP_MEMBERS,
   type EventGroup,
 } from '../render/eventMarkers';
-import {
-  HEATMAP_LABELS,
-  rampSwatches,
-  type HeatmapMode,
-} from '../render/heatmap';
+import { HEATMAP_LABELS, type HeatmapMode } from '../render/heatmap';
 import { EventGlyph } from './EventGlyph';
 import { formatDuration } from '../analysis/journeyStats';
-import {
-  PATH_READABILITY_LIMIT,
-  useAppState,
-  useDispatch,
-  useSelection,
-} from '../state/store';
+import { useAppState, useDispatch, useSelection } from '../state/store';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-b border-edge px-3 py-3">
+    <section className="shrink-0 border-b border-edge px-3 py-3">
       <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-2">
         {title}
       </h2>
@@ -65,7 +56,7 @@ function ShowingStats() {
         </p>
       )}
       {selection.journeyIds.length > 0 && selection.journeyIds.length < 30 && (
-        <p className="mt-2 text-[11px] text-[#e8c46a]">
+        <p className="mt-2 text-[11px] text-warn">
           ⚠ small sample (n={selection.journeyIds.length})
         </p>
       )}
@@ -151,31 +142,19 @@ function HeatmapControls() {
             </span>
           </label>
 
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-ink-2">low</span>
-            <span className="flex h-2 flex-1 overflow-hidden rounded-sm">
-              {rampSwatches(active, 12).map((s, i) => (
-                <span key={i} className="flex-1" style={{ background: s.css }} />
-              ))}
-            </span>
-            <span className="text-[11px] text-ink-2">high</span>
-          </div>
-
-          {counts[active] === 0 ? (
-            <p className="mt-2 text-[11px] leading-relaxed text-[#e8c46a]">
-              No {HEATMAP_LABELS[active].toLowerCase()} events in this selection — nothing
-              to shade.
+          {/*
+            Only conditional, actionable warnings live here. The standing caveat that
+            shading is relative rather than an absolute rate belongs in the legend,
+            beside the colour ramp it describes — not permanently in the rail.
+          */}
+          {counts[active] === 0 && (
+            <p className="mt-2 text-[11px] leading-relaxed text-warn">
+              No {HEATMAP_LABELS[active].toLowerCase()} events here — nothing to shade.
             </p>
-          ) : (
-            <p className="mt-2 text-[11px] leading-relaxed text-ink-2">
-              Relative shading within the current filters, not an absolute rate. Colour
-              is rescaled whenever the selection changes.
-              {counts[active] < 30 && (
-                <span className="text-[#e8c46a]">
-                  {' '}
-                  Only {counts[active]} events here — read the shape with caution.
-                </span>
-              )}
+          )}
+          {counts[active] > 0 && counts[active] < 30 && (
+            <p className="mt-2 text-[11px] leading-relaxed text-warn">
+              Only {counts[active]} events — read the shape with caution.
             </p>
           )}
         </>
@@ -242,18 +221,15 @@ function EventToggles() {
       </ul>
 
       {/*
-        Two facts a designer needs before reading this layer, both measured: PvP is
-        effectively absent, and the schema cannot support killer-victim links.
+        Kept because it is measured, selection-dependent and changes how the layer reads.
+        The standing "no target id in the schema" caveat is stated on every combat
+        tooltip and in the legend; repeating it permanently here is noise.
       */}
       {eventVisibility.kills && counts.Kill + counts.Killed === 0 && (
         <p className="mt-2 text-[11px] leading-relaxed text-ink-2">
-          No player-vs-player kills in this selection — combat here is player-vs-bot.
+          No player-vs-player kills here — all combat is versus bots.
         </p>
       )}
-      <p className="mt-2 text-[11px] leading-relaxed text-ink-2">
-        Events record the acting player only. No target id exists in the schema, so
-        killer-victim links are not shown.
-      </p>
     </Section>
   );
 }
@@ -272,17 +248,10 @@ function JourneyList() {
 
   if (!dataset) return null;
 
-  if (!selection.pathsReadable) {
-    return (
-      <Section title="Journeys">
-        <p className="text-ink-2">
-          {count.toLocaleString()} journeys shown as combined routes. Click any route on
-          the map to inspect it, or narrow to {PATH_READABILITY_LIMIT} or fewer for a
-          list.
-        </p>
-      </Section>
-    );
-  }
+  // With hundreds of journeys visible there is no useful list to show, and a section
+  // whose only content is an instruction to go do something else is wasted space in a
+  // 260px rail. Render nothing; the map itself is the selection surface here.
+  if (!selection.pathsReadable) return null;
 
   return (
     <Section title={`Journeys (${count})`}>
@@ -357,7 +326,7 @@ function MatchList() {
       {options.length === 0 ? (
         <p className="text-ink-2">No matches pass the current filters.</p>
       ) : (
-        <ul className="-mx-1 max-h-[34vh] space-y-px overflow-y-auto">
+        <ul className="-mx-1 max-h-[38vh] min-h-[9rem] space-y-px overflow-y-auto">
           {shown.map((id) => {
             const match = dataset.matches[id];
             if (!match) return null;
@@ -380,12 +349,25 @@ function MatchList() {
                     active ? 'bg-surface-3 text-ink-0' : 'text-ink-1 hover:bg-surface-2'
                   }`}
                 >
-                  <span className="tabular-nums text-ink-2">{time}</span>
-                  <span className="tabular-nums">
-                    {humans}H {bots}B
-                  </span>
+                  <span className="tabular-nums text-ink-1">{time}</span>
                   <span className="flex-1" />
-                  <span className="tabular-nums text-ink-2">
+                  {/*
+                    286 of 300 rows are "1H 0B" — printing it on every row spends a
+                    column to say nothing 95% of the time and hides the handful of
+                    matches that actually have a bot squad. Show the roster only when
+                    it carries information.
+                  */}
+                  {(bots > 0 || humans > 1) && (
+                    <span
+                      className="shrink-0 rounded-sm bg-surface-3 px-1 text-[11px] tabular-nums text-ink-1"
+                      title={`${humans} human${humans === 1 ? '' : 's'}, ${bots} bot${bots === 1 ? '' : 's'} recorded`}
+                    >
+                      {humans > 1 ? `${humans}H` : ''}
+                      {humans > 1 && bots > 0 ? ' ' : ''}
+                      {bots > 0 ? `${bots}B` : ''}
+                    </span>
+                  )}
+                  <span className="w-10 shrink-0 text-right tabular-nums text-ink-2">
                     {formatDuration(match.durationSec)}
                   </span>
                 </button>
@@ -397,7 +379,7 @@ function MatchList() {
 
       {options.length > shown.length && (
         <p className="mt-2 text-[11px] text-ink-2">
-          Showing the {shown.length} most recent. Narrow by date to see the rest.
+          Newest {shown.length} of {options.length.toLocaleString()}.
         </p>
       )}
     </Section>

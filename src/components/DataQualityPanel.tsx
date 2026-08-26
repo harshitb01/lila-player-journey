@@ -45,7 +45,7 @@ export function DataQualityPanel({ onClose }: { onClose: () => void }) {
           {dataset.dataQuality.map((note) => (
             <li key={note.category} className="px-5 py-3">
               <div className="mb-1 flex items-baseline gap-2">
-                <span className="font-mono text-[12px] text-[#e8c46a]">
+                <span className="font-mono text-[12px] text-warn">
                   {note.category}
                 </span>
                 <span className="tabular-nums text-ink-2">

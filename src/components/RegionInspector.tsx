@@ -49,20 +49,9 @@ export function RegionInspector() {
   const mapTracks = mapId ? tracks.get(mapId) : undefined;
   const map = mapId ? dataset?.mapsById.get(mapId) : null;
 
-  // Recomputed only when the region or the underlying filtered selection changes —
-  // never per animation frame. visibleSlots already encodes map/date/match/actor.
-  const { visibleSlots, slotIsBot } = useMemo(() => {
-    if (!mapTracks || !dataset) return { visibleSlots: null, slotIsBot: null };
-    const visible = new Uint8Array(mapTracks.journeyCount);
-    const isBot = new Uint8Array(mapTracks.journeyCount);
-    const allowed = new Set(selection.journeyIds);
-    for (let slot = 0; slot < mapTracks.journeyCount; slot++) {
-      const journeyId = mapTracks.journeyIds[slot]!;
-      visible[slot] = allowed.has(journeyId) ? 1 : 0;
-      isBot[slot] = dataset.journeys[journeyId]?.actorType === 'bot' ? 1 : 0;
-    }
-    return { visibleSlots: visible, slotIsBot: isBot };
-  }, [mapTracks, dataset, selection.journeyIds]);
+  // Slot tables come from the shared selection; this component used to rebuild the
+  // identical Uint8Arrays and Set that MapCanvas was already building.
+  const { visibleSlots, slotIsBot } = selection;
 
   const stats = useMemo(
     () => computeRegionStats(mapTracks ?? null, visibleSlots, slotIsBot, region),
@@ -128,7 +117,7 @@ export function RegionInspector() {
           .
         </p>
         {stats.totalPoints > 0 && stats.totalPoints < 30 && (
-          <p className="mt-1 text-[#e8c46a]">⚠ small sample (n={stats.totalPoints})</p>
+          <p className="mt-1 text-warn">⚠ small sample (n={stats.totalPoints})</p>
         )}
         {stats.totalPoints === 0 && (
           <p className="mt-1">Nothing recorded here under the current filters.</p>

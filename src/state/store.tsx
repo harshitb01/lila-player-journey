@@ -406,7 +406,19 @@ export function useDispatch(): Dispatch<Action> {
 // Derived selection
 // --------------------------------------------------------------------------------------
 
-export type Selection = FilterResult;
+export interface Selection extends FilterResult {
+  /**
+   * Per-track-slot lookup tables for the active map, aligned to `MapTracks.journeyIds`.
+   *
+   * Computed once here rather than in each consumer: MapCanvas and RegionInspector both
+   * need them, and each was independently allocating two Uint8Arrays and a Set of every
+   * visible journey id on every selection change.
+   */
+  visibleSlots: Uint8Array | null;
+  slotIsBot: Uint8Array | null;
+  /** Track slot of the focused journey, or -1. */
+  selectedSlot: number;
+}
 
 const SelectionContext = createContext<Selection | null>(null);
 
@@ -429,15 +441,36 @@ function SelectionProvider({ state, children }: { state: AppState; children: Rea
     [state.mapId, state.selectedDates, state.actorVisibility, state.selectedMatch],
   );
 
-  const selection = useMemo(
+  const filtered = useMemo(
     () => computeFilters(state.dataset, filters),
     [state.dataset, filters],
   );
 
+  const mapTracks = state.mapId ? state.tracks.get(state.mapId) : undefined;
+  const { dataset, focusedJourney } = state;
+
+  const selection = useMemo<Selection>(() => {
+    if (!mapTracks || !dataset) {
+      return { ...filtered, visibleSlots: null, slotIsBot: null, selectedSlot: -1 };
+    }
+    const visible = new Uint8Array(mapTracks.journeyCount);
+    const isBot = new Uint8Array(mapTracks.journeyCount);
+    const allowed = new Set(filtered.journeyIds);
+    let focused = -1;
+
+    for (let slot = 0; slot < mapTracks.journeyCount; slot++) {
+      const journeyId = mapTracks.journeyIds[slot]!;
+      visible[slot] = allowed.has(journeyId) ? 1 : 0;
+      isBot[slot] = dataset.journeys[journeyId]?.actorType === 'bot' ? 1 : 0;
+      if (focusedJourney !== null && journeyId === focusedJourney) focused = slot;
+    }
+    return { ...filtered, visibleSlots: visible, slotIsBot: isBot, selectedSlot: focused };
+  }, [filtered, mapTracks, dataset, focusedJourney]);
+
   // Reconcile selections the current filters have invalidated. Doing this centrally
   // covers every filter path, and preserves a selection that is still valid rather than
   // clearing it defensively on any filter touch.
-  const { selectedMatch, focusedJourney } = state;
+  const { selectedMatch } = state;
   useEffect(() => {
     const staleMatch = selectedMatch !== null && !selection.matchIsValid;
     const staleJourney =

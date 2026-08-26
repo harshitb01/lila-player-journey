@@ -97,7 +97,6 @@ export function MapCanvas() {
     mapId,
     tracks,
     tracksLoading,
-    focusedJourney,
     eventVisibility,
     selectedMatch,
     playback,
@@ -128,25 +127,9 @@ export function MapCanvas() {
   const aspect = map ? map.image.naturalWidth / map.image.naturalHeight : 1;
   const rect = useMemo(() => computeFitRect(size, aspect), [size, aspect]);
 
-  // Journey id -> visibility and actor type, keyed by track slot. Rebuilt only when the
-  // selection changes; the render loop then reads flat arrays.
-  const { visibleSlots, slotIsBot, selectedSlot } = useMemo(() => {
-    if (!mapTracks || !dataset) {
-      return { visibleSlots: null, slotIsBot: null, selectedSlot: -1 };
-    }
-    const visible = new Uint8Array(mapTracks.journeyCount);
-    const isBot = new Uint8Array(mapTracks.journeyCount);
-    const allowed = new Set(selection.journeyIds);
-    let focused = -1;
-
-    for (let slot = 0; slot < mapTracks.journeyCount; slot++) {
-      const journeyId = mapTracks.journeyIds[slot]!;
-      visible[slot] = allowed.has(journeyId) ? 1 : 0;
-      isBot[slot] = dataset.journeys[journeyId]?.actorType === 'bot' ? 1 : 0;
-      if (focusedJourney !== null && journeyId === focusedJourney) focused = slot;
-    }
-    return { visibleSlots: visible, slotIsBot: isBot, selectedSlot: focused };
-  }, [mapTracks, dataset, selection.journeyIds, focusedJourney]);
+  // Per-slot lookup tables come from the shared selection, so the scan that builds them
+  // happens once for the whole app rather than once per consumer.
+  const { visibleSlots, slotIsBot, selectedSlot } = selection;
 
   /**
    * Spatial aggregation, memoised on the inputs that can change it.

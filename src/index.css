@@ -14,6 +14,10 @@
   --color-accent: #4da3ff;
   --color-human: #f2f5f9;
   --color-bot: #7c8697;
+  /* Caveat / low-confidence amber. Used wherever a number needs a health warning. */
+  --color-warn: #e8c46a;
+  --color-warn-edge: #5a4a24;
+  --color-warn-bg: #221d13;
 }
 
 html, body, #root { height: 100%; }

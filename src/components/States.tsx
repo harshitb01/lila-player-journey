@@ -65,8 +65,8 @@ export function TracksError() {
 /** Artwork failed but positions are still correct — say so explicitly. */
 export function MapArtworkWarning() {
   return (
-    <div className="pointer-events-none absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-md border border-[#5a4a24] bg-[#241f14] px-3 py-2">
-      <p className="text-[#e8c46a]">
+    <div className="pointer-events-none absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-md border border-warn-edge bg-[#241f14] px-3 py-2">
+      <p className="text-warn">
         Minimap artwork unavailable — positions are still accurate.
       </p>
     </div>
