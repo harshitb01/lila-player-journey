@@ -1,13 +1,24 @@
+import { useMemo, useState } from 'react';
+
 import type { EventName } from '../data/types';
 import {
   EVENT_GROUP_LABELS,
   GROUP_MEMBERS,
   type EventGroup,
 } from '../render/eventMarkers';
-import { HEATMAP_LABELS, type HeatmapMode } from '../render/heatmap';
+import {
+  HEATMAP_LABELS,
+  type HeatmapMode,
+  type PointHeatmapMode,
+} from '../render/heatmap';
 import { EventGlyph } from './EventGlyph';
 import { formatDuration } from '../analysis/journeyStats';
-import { useAppState, useDispatch, useSelection } from '../state/store';
+import {
+  useAppState,
+  useDispatch,
+  useSelection,
+  type PathMode,
+} from '../state/store';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -75,24 +86,33 @@ function HeatmapControls() {
   const dispatch = useDispatch();
   const selection = useSelection();
 
-  const counts: Record<Exclude<HeatmapMode, 'none'>, number> = {
+  const counts: Record<PointHeatmapMode, number> = {
     traffic: selection.eventCounts.Position + selection.eventCounts.BotPosition,
     kills: selection.eventCounts.Kill + selection.eventCounts.BotKill,
     deaths:
       selection.eventCounts.Killed +
       selection.eventCounts.BotKilled +
       selection.eventCounts.KilledByStorm,
+    loot: selection.eventCounts.Loot,
   };
 
-  const modes: HeatmapMode[] = ['traffic', 'kills', 'deaths', 'none'];
+  const modes: HeatmapMode[] = [
+    'traffic',
+    'kills',
+    'deaths',
+    'loot',
+    'lowActivity',
+    'none',
+  ];
   const active = heatmapMode !== 'none' ? heatmapMode : null;
+  const activePointMode = active && active !== 'lowActivity' ? active : null;
 
   return (
     <Section title="Heatmap">
       <ul className="space-y-0.5">
         {modes.map((mode) => {
           const on = heatmapMode === mode;
-          const count = mode === 'none' ? null : counts[mode];
+          const count = mode === 'none' || mode === 'lowActivity' ? null : counts[mode];
           return (
             <li key={mode}>
               <button
@@ -147,18 +167,72 @@ function HeatmapControls() {
             shading is relative rather than an absolute rate belongs in the legend,
             beside the colour ramp it describes — not permanently in the rail.
           */}
-          {counts[active] === 0 && (
-            <p className="mt-2 text-[11px] leading-relaxed text-warn">
-              No {HEATMAP_LABELS[active].toLowerCase()} events here — nothing to shade.
+          {active === 'lowActivity' && (
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-2">
+              Fewer recorded movement samples inside the observed telemetry envelope.
+              This does not establish terrain playability or player avoidance.
             </p>
           )}
-          {counts[active] > 0 && counts[active] < 30 && (
+          {activePointMode && counts[activePointMode] === 0 && (
             <p className="mt-2 text-[11px] leading-relaxed text-warn">
-              Only {counts[active]} events — read the shape with caution.
+              No {HEATMAP_LABELS[activePointMode].toLowerCase()} here — nothing to shade.
             </p>
           )}
+          {activePointMode &&
+            counts[activePointMode] > 0 &&
+            counts[activePointMode] < 30 && (
+            <p className="mt-2 text-[11px] leading-relaxed text-warn">
+              Only {counts[activePointMode]} recorded{' '}
+              {activePointMode === 'traffic' ? 'samples' : 'events'} — read the shape with
+              caution.
+            </p>
+            )}
         </>
       )}
+    </Section>
+  );
+}
+
+/** Explicit route policy: large cohorts default off, with an intentional override. */
+function PathControls() {
+  const { pathMode } = useAppState();
+  const dispatch = useDispatch();
+  const selection = useSelection();
+  const modes: { mode: PathMode; label: string }[] = [
+    { mode: 'auto', label: 'Auto' },
+    { mode: 'on', label: 'Show' },
+    { mode: 'off', label: 'Hide' },
+  ];
+  const autoVisible = selection.pathsReadable;
+
+  return (
+    <Section title="Routes">
+      <div className="grid grid-cols-3 gap-1">
+        {modes.map(({ mode, label }) => {
+          const active = pathMode === mode;
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => dispatch({ type: 'paths/mode', mode })}
+              aria-pressed={active}
+              className={`rounded border px-1.5 py-1 text-[11px] transition-colors ${
+                active
+                  ? 'border-accent bg-surface-3 text-ink-0'
+                  : 'border-edge text-ink-2 hover:bg-surface-2'
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-2">
+        Auto {autoVisible ? 'shows' : 'hides'} cohort routes at{' '}
+        {selection.journeyIds.length.toLocaleString()}{' '}
+        {selection.journeyIds.length === 1 ? 'journey' : 'journeys'}; selected routes remain
+        visible.
+      </p>
     </Section>
   );
 }
@@ -305,11 +379,22 @@ function MatchList() {
   const { dataset, selectedMatch } = useAppState();
   const dispatch = useDispatch();
   const selection = useSelection();
-
-  if (!dataset) return null;
+  const [query, setQuery] = useState('');
 
   const options = selection.matchOptions;
-  const shown = options.slice(0, 300);
+  const shown = useMemo(() => {
+    if (!dataset) return [];
+    const needle = query.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter((id) => {
+      const match = dataset.matches[id];
+      if (!match) return false;
+      const iso = new Date(match.startedAt * 1000).toISOString();
+      return match.matchId.toLowerCase().includes(needle) || iso.toLowerCase().includes(needle);
+    });
+  }, [dataset, options, query]);
+
+  if (!dataset) return null;
 
   return (
     <Section title={`Matches (${options.length.toLocaleString()})`}>
@@ -323,8 +408,21 @@ function MatchList() {
         </button>
       )}
 
+      <label className="mb-2 block">
+        <span className="sr-only">Search matches</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search ID or UTC date"
+          className="w-full rounded border border-edge bg-surface-0 px-2 py-1.5 text-[11px] text-ink-0 outline-none placeholder:text-ink-2 focus:border-accent"
+        />
+      </label>
+
       {options.length === 0 ? (
         <p className="text-ink-2">No matches pass the current filters.</p>
+      ) : shown.length === 0 ? (
+        <p className="text-ink-2">No matches contain “{query.trim()}”.</p>
       ) : (
         <ul className="-mx-1 max-h-[38vh] min-h-[9rem] space-y-px overflow-y-auto">
           {shown.map((id) => {
@@ -334,7 +432,8 @@ function MatchList() {
               (j) => dataset.journeys[j]?.actorType === 'human',
             ).length;
             const bots = match.journeys.length - humans;
-            const time = new Date(match.startedAt * 1000).toISOString().slice(11, 16);
+            const timestamp = new Date(match.startedAt * 1000).toISOString();
+            const dateTime = `${timestamp.slice(5, 10)} ${timestamp.slice(11, 16)}`;
             const active = selectedMatch === id;
 
             return (
@@ -349,11 +448,11 @@ function MatchList() {
                     active ? 'bg-surface-3 text-ink-0' : 'text-ink-1 hover:bg-surface-2'
                   }`}
                 >
-                  <span className="tabular-nums text-ink-1">{time}</span>
+                  <span className="tabular-nums text-ink-1">{dateTime}</span>
                   <span className="flex-1" />
                   {/*
-                    286 of 300 rows are "1H 0B" — printing it on every row spends a
-                    column to say nothing 95% of the time and hides the handful of
+                    Most rows are "1H 0B" — printing it on every row spends a column to
+                    say nothing and hides the handful of
                     matches that actually have a bot squad. Show the roster only when
                     it carries information.
                   */}
@@ -377,9 +476,9 @@ function MatchList() {
         </ul>
       )}
 
-      {options.length > shown.length && (
+      {query.trim() && (
         <p className="mt-2 text-[11px] text-ink-2">
-          Newest {shown.length} of {options.length.toLocaleString()}.
+          {shown.length.toLocaleString()} of {options.length.toLocaleString()} matches.
         </p>
       )}
     </Section>
@@ -391,6 +490,7 @@ export function LeftRail() {
     <aside className="flex w-[260px] shrink-0 flex-col overflow-y-auto border-r border-edge bg-surface-1">
       <ShowingStats />
       <HeatmapControls />
+      <PathControls />
       <EventToggles />
       <JourneyList />
       <MatchList />

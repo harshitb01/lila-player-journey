@@ -5,6 +5,7 @@ import {
   BLUR_RADIUS,
   blurGrid,
   buildGrid,
+  buildLowActivityGrid,
   gridToRgba,
   intensityCap,
 } from '../render/heatmap';
@@ -60,27 +61,28 @@ type ImageState = 'idle' | 'loading' | 'ready' | 'failed';
 
 /** Loads the minimap artwork. Failure is non-fatal — telemetry stays accurate. */
 function useMinimapImage(map: MapModel | null) {
-  const [state, setState] = useState<ImageState>('idle');
-  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [result, setResult] = useState<{
+    mapId: MapModel['id'] | null;
+    state: ImageState;
+    image: HTMLImageElement | null;
+  }>({ mapId: null, state: 'idle', image: null });
 
   useEffect(() => {
     if (!map) {
-      imageRef.current = null;
-      setState('idle');
+      setResult({ mapId: null, state: 'idle', image: null });
       return;
     }
     let cancelled = false;
     const image = new Image();
-    setState('loading');
+    const requestedMapId = map.id;
+    setResult({ mapId: requestedMapId, state: 'loading', image: null });
     image.onload = () => {
       if (cancelled) return;
-      imageRef.current = image;
-      setState('ready');
+      setResult({ mapId: requestedMapId, state: 'ready', image });
     };
     image.onerror = () => {
       if (cancelled) return;
-      imageRef.current = null;
-      setState('failed');
+      setResult({ mapId: requestedMapId, state: 'failed', image: null });
     };
     image.src = map.image.url;
     return () => {
@@ -88,7 +90,10 @@ function useMinimapImage(map: MapModel | null) {
     };
   }, [map]);
 
-  return { image: imageRef, state };
+  if (!map || result.mapId !== map.id) {
+    return { image: null, state: map ? ('loading' as const) : ('idle' as const) };
+  }
+  return { image: result.image, state: result.state };
 }
 
 export function MapCanvas() {
@@ -102,6 +107,7 @@ export function MapCanvas() {
     playback,
     heatmapMode,
     heatmapIntensity,
+    pathMode,
     region,
   } = useAppState();
   const dispatch = useDispatch();
@@ -140,11 +146,15 @@ export function MapCanvas() {
    */
   const heatmapStats = useMemo(() => {
     if (!mapTracks || heatmapMode === 'none') return null;
+    if (heatmapMode === 'lowActivity') {
+      const grid = buildLowActivityGrid(mapTracks, visibleSlots, map?.uvBounds ?? null);
+      return { grid, cap: grid.max > 0 ? 1 : 0, total: grid.total };
+    }
     const raw = buildGrid(mapTracks, visibleSlots, heatmapMode);
     if (raw.total === 0) return { grid: raw, cap: 0, total: 0 };
     const grid = blurGrid(raw, BLUR_RADIUS[heatmapMode]);
     return { grid, cap: intensityCap(grid), total: raw.total };
-  }, [mapTracks, visibleSlots, heatmapMode]);
+  }, [mapTracks, visibleSlots, heatmapMode, map]);
 
   /**
    * The grid painted into a small offscreen canvas, scaled up at draw time.
@@ -169,6 +179,8 @@ export function MapCanvas() {
   const duration = match?.durationSec ?? 0;
   // Playback only applies to a drilled-into match; the aggregate view has no shared clock.
   const playbackActive = match !== undefined;
+  const showCohortPaths =
+    pathMode === 'on' || (pathMode === 'auto' && selection.pathsReadable);
 
   /**
    * Everything the draw call needs, held in a ref.
@@ -212,12 +224,13 @@ export function MapCanvas() {
         slotIsBot,
         selectedSlot,
         soloThreshold: PATH_READABILITY_LIMIT,
+        showCohortPaths,
         eventGroups: eventVisibility,
         heatmap: heatmapCanvas,
         region: drag ? regionFromCanvasDrag(drag.start, drag.current, rect) : region,
       },
       map,
-      image: image.current,
+      image,
       size,
       dpr,
     };
@@ -230,6 +243,7 @@ export function MapCanvas() {
     visibleSlots,
     slotIsBot,
     selectedSlot,
+    showCohortPaths,
     eventVisibility,
     heatmapCanvas,
     region,
@@ -313,6 +327,10 @@ export function MapCanvas() {
   // Click the map to select the nearest visible journey; click empty space to clear.
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!mapTracks || event.shiftKey) return; // Shift+click is the tail end of a drag
+    if (!showCohortPaths) {
+      dispatch({ type: 'journey/focus', journey: null });
+      return;
+    }
     const bounds = event.currentTarget.getBoundingClientRect();
     const point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
     const clip = playbackActive ? playback.time : null;
@@ -352,7 +370,7 @@ export function MapCanvas() {
     return () => window.removeEventListener('keydown', onKey);
   }, [region, dispatch]);
 
-  const isLoadingTracks = tracksLoading !== null && tracksLoading === mapId;
+  const isLoadingTracks = tracksLoading !== null && tracksLoading.mapId === mapId;
   const isEmpty = !isLoadingTracks && mapTracks !== null && selection.journeyIds.length === 0;
 
   return (

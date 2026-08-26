@@ -17,29 +17,34 @@
 import type { MapTracks } from '../data/model';
 import { EventCode } from '../data/types';
 
-export type HeatmapMode = 'none' | 'traffic' | 'kills' | 'deaths';
+export type PointHeatmapMode = 'traffic' | 'kills' | 'deaths' | 'loot';
+export type HeatmapMode = 'none' | PointHeatmapMode | 'lowActivity';
 
 /** Event codes contributing to each mode, exactly as specified. */
-export const HEATMAP_CODES: Record<Exclude<HeatmapMode, 'none'>, ReadonlySet<number>> = {
+export const HEATMAP_CODES: Record<PointHeatmapMode, ReadonlySet<number>> = {
   traffic: new Set([EventCode.Position, EventCode.BotPosition]),
   kills: new Set([EventCode.Kill, EventCode.BotKill]),
   deaths: new Set([EventCode.Killed, EventCode.BotKilled, EventCode.KilledByStorm]),
+  loot: new Set([EventCode.Loot]),
 };
 
 export const HEATMAP_LABELS: Record<Exclude<HeatmapMode, 'none'>, string> = {
-  traffic: 'Traffic',
+  traffic: 'Movement samples',
   kills: 'Kill zones',
   deaths: 'Death zones',
+  loot: 'Loot pickups',
+  lowActivity: 'Low Activity',
 };
 
 /** Grid resolution in bins per axis. 160 keeps bins near a few world units across. */
 export const GRID_RESOLUTION = 160;
 
 /** Smoothing radius in bins, per mode. Sparse layers need more to read as a field. */
-export const BLUR_RADIUS: Record<Exclude<HeatmapMode, 'none'>, number> = {
+export const BLUR_RADIUS: Record<PointHeatmapMode, number> = {
   traffic: 2,
   kills: 3,
   deaths: 3,
+  loot: 2,
 };
 
 export interface HeatmapGrid {
@@ -64,7 +69,7 @@ export interface HeatmapGrid {
 export function buildGrid(
   tracks: MapTracks | null,
   visibleSlots: Uint8Array | null,
-  mode: HeatmapMode,
+  mode: PointHeatmapMode | 'none',
   resolution = GRID_RESOLUTION,
 ): HeatmapGrid {
   const values = new Float32Array(resolution * resolution);
@@ -156,6 +161,61 @@ export function blurGrid(grid: HeatmapGrid, radius: number): HeatmapGrid {
   return { resolution, values: source, max, total: grid.total, occupied };
 }
 
+export interface ObservedUvBounds {
+  minU: number;
+  maxU: number;
+  minV: number;
+  maxV: number;
+}
+
+/**
+ * Invert smoothed movement-sample density inside the map's observed telemetry envelope.
+ *
+ * The result deliberately says only “less recorded activity in this selection.” Bins
+ * outside the envelope stay transparent, and an empty cohort produces no overlay: zero
+ * telemetry is not evidence that terrain is playable or that players avoided it.
+ */
+export function buildLowActivityGrid(
+  tracks: MapTracks | null,
+  visibleSlots: Uint8Array | null,
+  bounds: ObservedUvBounds | null,
+  resolution = GRID_RESOLUTION,
+): HeatmapGrid {
+  const values = new Float32Array(resolution * resolution);
+  if (!tracks || !bounds) {
+    return { resolution, values, max: 0, total: 0, occupied: 0 };
+  }
+
+  const movement = buildGrid(tracks, visibleSlots, 'traffic', resolution);
+  if (movement.total === 0) {
+    return { resolution, values, max: 0, total: 0, occupied: 0 };
+  }
+  const smoothed = blurGrid(movement, BLUR_RADIUS.traffic);
+  const activityCap = intensityCap(smoothed, 0.9);
+  if (activityCap <= 0) {
+    return { resolution, values, max: 0, total: movement.total, occupied: 0 };
+  }
+
+  let max = 0;
+  let occupied = 0;
+  for (let row = 0; row < resolution; row++) {
+    const v = 1 - (row + 0.5) / resolution;
+    if (v < bounds.minV || v > bounds.maxV) continue;
+    for (let col = 0; col < resolution; col++) {
+      const u = (col + 0.5) / resolution;
+      if (u < bounds.minU || u > bounds.maxU) continue;
+      const index = row * resolution + col;
+      const activity = Math.min(1, smoothed.values[index]! / activityCap);
+      const lowActivity = (1 - activity) ** 1.25;
+      if (lowActivity <= 0.02) continue;
+      values[index] = lowActivity;
+      occupied++;
+      if (lowActivity > max) max = lowActivity;
+    }
+  }
+  return { resolution, values, max, total: movement.total, occupied };
+}
+
 /**
  * Upper bound for the colour ramp.
  *
@@ -198,6 +258,20 @@ export const RAMPS: Record<Exclude<HeatmapMode, 'none'>, [number, number, number
     [226, 62, 80],
     [255, 130, 130],
     [255, 225, 220],
+  ],
+  loot: [
+    [45, 64, 18],
+    [92, 120, 28],
+    [158, 174, 54],
+    [220, 215, 96],
+    [255, 246, 190],
+  ],
+  lowActivity: [
+    [35, 28, 61],
+    [64, 48, 105],
+    [96, 72, 151],
+    [145, 116, 205],
+    [211, 190, 255],
   ],
 };
 

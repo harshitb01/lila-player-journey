@@ -14,7 +14,7 @@ import { EventGlyph } from './EventGlyph';
  */
 export function Legend() {
   const [open, setOpen] = useState(true);
-  const { mapId, dataset, eventVisibility, heatmapMode } = useAppState();
+  const { mapId, dataset, eventVisibility, heatmapMode, pathMode } = useAppState();
   const selection = useSelection();
   const map = mapId ? dataset?.mapsById.get(mapId) : null;
   if (!map) return null;
@@ -68,8 +68,17 @@ export function Legend() {
             axis keeps the caveat where it is read, instead of in a paragraph below.
           */}
           <div className="mb-1 flex justify-between text-[10px] text-ink-2">
-            <span>fewer</span>
-            <span>more {heatmapMode === 'traffic' ? 'time spent' : 'events'}</span>
+            {heatmapMode === 'lowActivity' ? (
+              <>
+                <span>more activity</span>
+                <span>less activity</span>
+              </>
+            ) : (
+              <>
+                <span>fewer</span>
+                <span>more {heatmapMode === 'traffic' ? 'samples' : 'events'}</span>
+              </>
+            )}
           </div>
           <p className="mb-3 text-[10px] text-ink-2">relative to current filter</p>
         </>
@@ -77,6 +86,13 @@ export function Legend() {
 
       <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-2">
         Routes
+      </p>
+      <p className="mb-2 text-[10px] text-ink-2">
+        {pathMode === 'auto'
+          ? `Auto — cohort routes ${selection.pathsReadable ? 'shown' : 'hidden'}`
+          : pathMode === 'on'
+            ? 'Cohort routes shown'
+            : 'Cohort routes hidden'}
       </p>
       <ul className="space-y-1.5">
         <li className="flex items-center gap-2">

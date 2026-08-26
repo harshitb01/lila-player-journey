@@ -45,10 +45,16 @@ class MapConfig:
     origin_z: float
 
 
+MAP_CONFIG_PATH = Path(__file__).resolve().parents[1] / "map-config.json"
+_MAP_CONFIG_SOURCE = json.loads(MAP_CONFIG_PATH.read_text(encoding="utf-8"))
 MAP_CONFIGS: dict[str, MapConfig] = {
-    "AmbroseValley": MapConfig("AmbroseValley", 900, -370, -473),
-    "GrandRift": MapConfig("GrandRift", 581, -290, -290),
-    "Lockdown": MapConfig("Lockdown", 1000, -500, -500),
+    map_id: MapConfig(
+        map_id,
+        config["scale"],
+        config["originX"],
+        config["originZ"],
+    )
+    for map_id, config in _MAP_CONFIG_SOURCE.items()
 }
 
 #: Measured pixel dimensions of the shipped minimap artwork. The README claims all
@@ -242,7 +248,7 @@ def check_coverage(result: dict) -> None:
               f"bounding box = {100 * span_u * span_v:5.1f}% of the image")
     print("\nUnreached area is NOT evidence of a projection error: it is equally")
     print("consistent with unplayable terrain, storm-restricted zones, or genuinely")
-    print("ignored space. Distinguishing those requires the artwork, not the numbers.")
+    print("low-activity space. Distinguishing playability requires the artwork, not the numbers.")
 
 
 def emit_fixture(path: Path, df: pd.DataFrame, n_per_map: int, seed: int) -> None:

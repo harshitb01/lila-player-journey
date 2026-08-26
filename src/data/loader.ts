@@ -4,7 +4,7 @@
  * This is the only module that knows the wire format exists.
  */
 
-import { MAP_CONFIGS, getMapConfig, isUvInBounds, worldToUv } from '../utils/coordinates';
+import { isUvInBounds, worldToUv } from '../utils/coordinates';
 import type { MapId } from '../utils/coordinates';
 import type {
   Dataset,
@@ -81,7 +81,7 @@ function decodeMap(wire: WireMap): MapModel {
   return {
     id: wire.id,
     displayName: wire.displayName,
-    config: getMapConfig(wire.id),
+    config: { id: wire.id, ...wire.projection },
     image: {
       url: dataUrl(image.url),
       thumbnailUrl: dataUrl(image.thumbnailUrl),
@@ -188,6 +188,7 @@ export async function loadDataset(): Promise<Dataset> {
 
   return {
     contentHash: manifest.contentHash,
+    coordinateScale: manifest.coordinateScale,
     totals: {
       sourceRows: manifest.source.rows,
       rows: manifest.processed.rows,
@@ -212,13 +213,37 @@ export async function loadDataset(): Promise<Dataset> {
  * Loads one map's track data and decodes it into flat typed arrays.
  *
  * UV is derived here rather than transmitted: it is an exact affine function of the
- * world coordinates, so shipping both would waste roughly 180 KB. The transform is the
- * validated one from `utils/coordinates`, shared with the Python pipeline and covered by
- * cross-language parity tests.
+ * world coordinates, so shipping both would waste roughly 180 KB. Projection metadata
+ * comes from the pipeline-emitted map model and quantisation comes from the manifest;
+ * both originate in the shared checked-in map contract.
  */
-export async function loadMapTracks(mapId: MapId, coordinateScale = 100): Promise<MapTracks> {
+export async function loadMapTracks(
+  mapId: MapId,
+  config: MapModel['config'],
+  coordinateScale: number,
+): Promise<MapTracks> {
+  if (config.id !== mapId) {
+    throw new DataLoadError(
+      `Projection config for ${mapId} identifies the wrong map.`,
+      'schema',
+      `Expected ${mapId}, received ${config.id}.`,
+    );
+  }
   const wire = await fetchJson<WireTracks>(`tracks/${mapId}.json`);
-  const config = MAP_CONFIGS[mapId];
+  if (wire.map !== mapId) {
+    throw new DataLoadError(
+      `Track data for ${mapId} identifies the wrong map.`,
+      'schema',
+      `Expected ${mapId}, received ${wire.map}.`,
+    );
+  }
+  if (!Number.isFinite(coordinateScale) || coordinateScale <= 0) {
+    throw new DataLoadError(
+      'Coordinate scale is invalid.',
+      'schema',
+      `Expected a positive number, received ${coordinateScale}.`,
+    );
+  }
 
   const journeyCount = wire.tracks.length;
   let pointCount = 0;

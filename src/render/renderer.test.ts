@@ -133,6 +133,7 @@ function options(tracks: MapTracks, overrides: Partial<RenderOptions> = {}): Ren
     slotIsBot: null,
     selectedSlot: -1,
     soloThreshold: 25,
+    showCohortPaths: true,
     eventGroups: { kills: true, deaths: true, storm: true, loot: true },
     playbackTime: null,
     heatmap: null,
@@ -285,6 +286,18 @@ describe('selection', () => {
       (s) => s.strokeStyle === PATH_STYLE.human.stroke && s.segmentCount > 0,
     );
     expect(solid!.segmentCount).toBe(1); // only the visible journey
+  });
+
+  it('can hide cohort paths while retaining the selected route', () => {
+    const ctx = run(tracks, { showCohortPaths: false, selectedSlot: 0 });
+    const cohort = ctx.strokes.find(
+      (s) => s.strokeStyle === PATH_STYLE.human.stroke && s.segmentCount > 0,
+    );
+    const selected = ctx.strokes.find(
+      (s) => s.strokeStyle === PATH_STYLE.selected.stroke && s.segmentCount > 0,
+    );
+    expect(cohort).toBeUndefined();
+    expect(selected).toBeDefined();
   });
 });
 

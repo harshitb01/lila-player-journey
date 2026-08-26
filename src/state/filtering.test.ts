@@ -70,6 +70,7 @@ function makeDataset(specs: Spec[]): Dataset {
 
   return {
     contentHash: 'test',
+    coordinateScale: 100,
     totals: { sourceRows: 0, rows: 0, journeys: journeys.length, matches: matches.length, players: 0 },
     dates: [...new Set(specs.map((s) => s.date))].sort(),
     dropped: { duplicateFileRows: 0, duplicateRows: 0 },

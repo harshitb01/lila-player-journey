@@ -43,17 +43,18 @@ export function FatalError({ message, detail }: { message: string; detail?: stri
 export function TracksError() {
   const { tracksError, mapId } = useAppState();
   const dispatch = useDispatch();
-  if (!tracksError || !mapId) return null;
+  if (!tracksError || !mapId || tracksError.mapId !== mapId) return null;
+  const { error } = tracksError;
 
   return (
     <div className="pointer-events-auto absolute left-1/2 top-6 z-20 w-[min(28rem,90%)] -translate-x-1/2 rounded-md border border-[#5a2a2f] bg-[#241417] p-4 shadow-lg">
-      <p className="mb-1 font-medium text-[#ff9aa4]">{tracksError.message}</p>
-      {tracksError.detail && (
-        <p className="mb-3 font-mono text-[11px] text-ink-2">{tracksError.detail}</p>
+      <p className="mb-1 font-medium text-[#ff9aa4]">{error.message}</p>
+      {error.detail && (
+        <p className="mb-3 font-mono text-[11px] text-ink-2">{error.detail}</p>
       )}
       <button
         type="button"
-        onClick={() => dispatch({ type: 'map/select', mapId })}
+        onClick={() => dispatch({ type: 'tracks/retry', mapId })}
         className="rounded border border-edge bg-surface-2 px-3 py-1 text-ink-0 hover:bg-surface-3"
       >
         Retry

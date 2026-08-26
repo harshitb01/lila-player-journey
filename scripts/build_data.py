@@ -69,20 +69,11 @@ EVENT_CODES = {
 MOVEMENT_HUMAN = "Position"
 MOVEMENT_BOT = "BotPosition"
 
-#: Validated in COORDINATE_VALIDATION.md. Do not edit without re-running that script.
-MAP_CONFIGS = {
-    "AmbroseValley": {"scale": 900, "originX": -370, "originZ": -473,
-                      "displayName": "Ambrose Valley"},
-    "GrandRift": {"scale": 581, "originX": -290, "originZ": -290,
-                  "displayName": "Grand Rift"},
-    "Lockdown": {"scale": 1000, "originX": -500, "originZ": -500,
-                 "displayName": "Lockdown"},
-}
-
+#: Authoritative map/projection contract, shared with the TypeScript renderer.
+MAP_CONFIG_PATH = Path(__file__).resolve().parents[1] / "map-config.json"
+MAP_CONFIGS = json.loads(MAP_CONFIG_PATH.read_text(encoding="utf-8"))
 MINIMAP_SOURCES = {
-    "AmbroseValley": "AmbroseValley_Minimap.png",
-    "GrandRift": "GrandRift_Minimap.png",
-    "Lockdown": "Lockdown_Minimap.jpg",
+    map_id: config["minimapSource"] for map_id, config in MAP_CONFIGS.items()
 }
 
 MATCH_SUFFIX = ".nakama-0"

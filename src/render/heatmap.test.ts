@@ -10,6 +10,7 @@ import {
   MAX_ALPHA,
   blurGrid,
   buildGrid,
+  buildLowActivityGrid,
   gridToRgba,
   intensityCap,
   rampSwatches,
@@ -58,6 +59,7 @@ describe('mode definitions', () => {
     expect([...HEATMAP_CODES.deaths].sort()).toEqual(
       [EventCode.Killed, EventCode.BotKilled, EventCode.KilledByStorm].sort(),
     );
+    expect([...HEATMAP_CODES.loot]).toEqual([EventCode.Loot]);
   });
 
   it('counts both human and bot movement as traffic', () => {
@@ -76,6 +78,43 @@ describe('mode definitions', () => {
     ]);
     expect(buildGrid(tracks, null, 'kills').total).toBe(1);
     expect(buildGrid(tracks, null, 'deaths').total).toBe(1);
+  });
+
+  it('includes only loot pickups in the loot layer', () => {
+    const tracks = makeTracks([
+      { u: 0.5, v: 0.5, e: EventCode.Loot },
+      { u: 0.5, v: 0.5, e: POS },
+    ]);
+    expect(buildGrid(tracks, null, 'loot').total).toBe(1);
+  });
+});
+
+describe('low activity', () => {
+  const bounds = { minU: 0.25, maxU: 0.75, minV: 0.25, maxV: 0.75 };
+
+  it('shades only inside the observed envelope', () => {
+    const grid = buildLowActivityGrid(
+      makeTracks([{ u: 0.5, v: 0.5, e: POS }]),
+      null,
+      bounds,
+      8,
+    );
+    expect(grid.values[0]).toBe(0);
+    expect(grid.values[7 * 8 + 7]).toBe(0);
+    expect(grid.occupied).toBeGreaterThan(0);
+  });
+
+  it('gives busy bins less weight than unsampled bins in the envelope', () => {
+    const points = Array.from({ length: 40 }, () => ({ u: 0.5, v: 0.5, e: POS }));
+    const grid = buildLowActivityGrid(makeTracks(points), null, bounds, 16);
+    const busy = grid.values[8 * 16 + 8]!;
+    const quiet = grid.values[5 * 16 + 5]!;
+    expect(quiet).toBeGreaterThan(busy);
+  });
+
+  it('draws nothing when the current cohort has no movement samples', () => {
+    const tracks = makeTracks([{ u: 0.5, v: 0.5, e: EventCode.Loot }]);
+    expect(buildLowActivityGrid(tracks, null, bounds, 8).occupied).toBe(0);
   });
 });
 
@@ -276,8 +315,10 @@ describe('gridToRgba', () => {
   });
 
   it('gives each mode a visually distinct ramp', () => {
-    const at = (mode: 'traffic' | 'kills' | 'deaths') => rampSwatches(mode, 3)[2]!.css;
-    expect(new Set([at('traffic'), at('kills'), at('deaths')]).size).toBe(3);
+    const modes = ['traffic', 'kills', 'deaths', 'loot', 'lowActivity'] as const;
+    expect(new Set(modes.map((mode) => rampSwatches(mode, 3)[2]!.css)).size).toBe(
+      modes.length,
+    );
   });
 });
 

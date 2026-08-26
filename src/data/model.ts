@@ -101,6 +101,8 @@ export interface DataQualityNote {
 /** Everything loaded at boot. Track data is fetched per map, on demand. */
 export interface Dataset {
   contentHash: string;
+  /** Integer units used by track payloads per one world unit. */
+  coordinateScale: number;
   totals: {
     sourceRows: number;
     rows: number;

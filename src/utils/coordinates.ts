@@ -1,9 +1,9 @@
 /**
  * World-to-minimap coordinate transformation.
  *
- * This module is deliberately dependency-free and side-effect-free: it is the single
- * source of truth for projecting LILA BLACK world coordinates onto minimap imagery,
- * and it is mirrored exactly by `scripts/coordinate_validation.py`.
+ * This module is deliberately side-effect-free. Projection constants come from the
+ * shared `map-config.json` contract also consumed by the Python pipeline; the formula
+ * itself is mirrored by `scripts/coordinate_validation.py` and parity-tested.
  *
  * The transform is the one documented in the dataset README:
  *
@@ -28,8 +28,10 @@
  *    exactly; the UV stage above it is untouched.
  */
 
-/** The three maps in rotation. */
-export type MapId = 'AmbroseValley' | 'GrandRift' | 'Lockdown';
+import mapConfigSource from '../../map-config.json';
+
+/** The maps in rotation, derived from the shared pipeline/browser contract. */
+export type MapId = keyof typeof mapConfigSource;
 
 /** Projection constants for one map, as published in the dataset README. */
 export interface MapConfig {
@@ -69,16 +71,24 @@ export interface RenderSize {
 export const REFERENCE_SIZE = 1024;
 
 /**
- * Projection constants, transcribed verbatim from the dataset README.
+ * Projection constants loaded from the same checked-in contract as the Python tools.
  *
  * Validated against all 89,104 telemetry rows: every point lands inside [0,1] UV on
  * every map. Do not edit without re-running `scripts/coordinate_validation.py`.
  */
-export const MAP_CONFIGS: Readonly<Record<MapId, MapConfig>> = Object.freeze({
-  AmbroseValley: { id: 'AmbroseValley', scale: 900, originX: -370, originZ: -473 },
-  GrandRift: { id: 'GrandRift', scale: 581, originX: -290, originZ: -290 },
-  Lockdown: { id: 'Lockdown', scale: 1000, originX: -500, originZ: -500 },
-});
+export const MAP_CONFIGS: Readonly<Record<MapId, MapConfig>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(mapConfigSource).map(([id, config]) => [
+      id,
+      Object.freeze({
+        id: id as MapId,
+        scale: config.scale,
+        originX: config.originX,
+        originZ: config.originZ,
+      }),
+    ]),
+  ) as Record<MapId, MapConfig>,
+);
 
 /** All valid map ids. */
 export const MAP_IDS: readonly MapId[] = Object.freeze(

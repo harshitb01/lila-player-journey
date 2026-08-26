@@ -9,7 +9,7 @@
  * sampling a typical journey is ~60 samples; 836 of them would be 50,000 discrete
  * markers, which reads as noise and says nothing about direction or route.
  *
- * Heatmaps and playback are not implemented yet.
+ * Heatmaps, paths, events and playback share this one deterministic frame renderer.
  */
 
 import { GAP_SECONDS } from '../analysis/journeyStats';
@@ -79,6 +79,8 @@ export interface RenderOptions {
   selectedSlot: number;
   /** Below this many visible journeys, paths are drawn at full strength. */
   soloThreshold: number;
+  /** Whether unselected cohort routes are drawn. The selected route is always retained. */
+  showCohortPaths: boolean;
   /** Which event groups are currently shown. */
   eventGroups: Record<EventGroup, boolean>;
   /**
@@ -288,22 +290,32 @@ function strokePath(
 }
 
 /**
- * Draws every visible journey.
+ * Draws visible cohort journeys when enabled, plus the selected journey regardless.
  *
  * Cost is three `stroke()` calls for the whole cohort plus a few for the selection,
  * regardless of how many journeys are visible.
  */
 export function drawJourneys(ctx: CanvasRenderingContext2D, options: RenderOptions): void {
-  const { tracks, rect, visibleSlots, slotIsBot, selectedSlot, soloThreshold, playbackTime } =
-    options;
+  const {
+    tracks,
+    rect,
+    visibleSlots,
+    slotIsBot,
+    selectedSlot,
+    soloThreshold,
+    showCohortPaths,
+    playbackTime,
+  } = options;
   if (!tracks || rect.width <= 0) return;
 
   const humanSlots: number[] = [];
   const botSlots: number[] = [];
-  for (let slot = 0; slot < tracks.journeyCount; slot++) {
-    if (visibleSlots && !visibleSlots[slot]) continue;
-    if (slot === selectedSlot) continue; // drawn separately, on top
-    (slotIsBot?.[slot] === 1 ? botSlots : humanSlots).push(slot);
+  if (showCohortPaths) {
+    for (let slot = 0; slot < tracks.journeyCount; slot++) {
+      if (visibleSlots && !visibleSlots[slot]) continue;
+      if (slot === selectedSlot) continue; // drawn separately, on top
+      (slotIsBot?.[slot] === 1 ? botSlots : humanSlots).push(slot);
+    }
   }
 
   const visibleCount = humanSlots.length + botSlots.length + (selectedSlot >= 0 ? 1 : 0);

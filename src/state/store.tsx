@@ -68,6 +68,17 @@ export interface LoadError {
   fatal: boolean;
 }
 
+export type PathMode = 'auto' | 'on' | 'off';
+
+export interface TrackRequestState {
+  mapId: MapId;
+  requestId: number;
+}
+
+export interface TrackErrorState extends TrackRequestState {
+  error: LoadError;
+}
+
 export interface AppState {
   status: 'loading' | 'ready' | 'error';
   dataset: Dataset | null;
@@ -79,6 +90,8 @@ export interface AppState {
   actorVisibility: ActorVisibility;
   eventVisibility: EventVisibility;
   heatmapMode: HeatmapMode;
+  /** Auto shows cohort routes only when the selection is small enough to read. */
+  pathMode: PathMode;
   /** Multiplies overlay opacity, 0.3..2. */
   heatmapIntensity: number;
   /** Shift+drag region selection, in UV space. Independent of match/journey selection. */
@@ -88,8 +101,10 @@ export interface AppState {
   playback: PlaybackState;
 
   tracks: ReadonlyMap<MapId, MapTracks>;
-  tracksLoading: MapId | null;
-  tracksError: LoadError | null;
+  tracksLoading: TrackRequestState | null;
+  tracksError: TrackErrorState | null;
+  /** Changes only when the user explicitly retries the active map. */
+  trackRetryToken: number;
 }
 
 export type Action =
@@ -102,6 +117,7 @@ export type Action =
   | { type: 'actor/toggle'; actor: keyof ActorVisibility }
   | { type: 'events/toggle'; group: EventGroup }
   | { type: 'heatmap/mode'; mode: HeatmapMode }
+  | { type: 'paths/mode'; mode: PathMode }
   | { type: 'heatmap/intensity'; intensity: number }
   | { type: 'region/set'; region: UvRect }
   | { type: 'region/clear' }
@@ -115,9 +131,10 @@ export type Action =
   | { type: 'filters/reconcile'; match?: number | null; journey?: number | null }
   | { type: 'match/select'; match: number | null }
   | { type: 'journey/focus'; journey: number | null }
-  | { type: 'tracks/loading'; mapId: MapId }
-  | { type: 'tracks/loaded'; mapId: MapId; tracks: MapTracks }
-  | { type: 'tracks/failed'; error: LoadError };
+  | { type: 'tracks/retry'; mapId: MapId }
+  | { type: 'tracks/loading'; mapId: MapId; requestId: number }
+  | { type: 'tracks/loaded'; mapId: MapId; requestId: number; tracks: MapTracks }
+  | { type: 'tracks/failed'; mapId: MapId; requestId: number; error: LoadError };
 
 export const initialState: AppState = {
   status: 'loading',
@@ -128,6 +145,7 @@ export const initialState: AppState = {
   actorVisibility: DEFAULT_ACTORS,
   eventVisibility: DEFAULT_EVENT_VISIBILITY,
   heatmapMode: 'traffic',
+  pathMode: 'auto',
   heatmapIntensity: 1,
   region: null,
   selectedMatch: null,
@@ -136,6 +154,7 @@ export const initialState: AppState = {
   tracks: new Map(),
   tracksLoading: null,
   tracksError: null,
+  trackRetryToken: 0,
 };
 
 /** The map shown on first load: the one with the most telemetry. */
@@ -178,6 +197,7 @@ export function reducer(state: AppState, action: Action): AppState {
         focusedJourney: null,
         region: null,
         playback: { ...INITIAL_PLAYBACK, speed: state.playback.speed },
+        tracksLoading: null,
         tracksError: null,
       };
 
@@ -230,6 +250,10 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'heatmap/mode':
       if (state.heatmapMode === action.mode) return state;
       return { ...state, heatmapMode: action.mode };
+
+    case 'paths/mode':
+      if (state.pathMode === action.mode) return state;
+      return { ...state, pathMode: action.mode };
 
     case 'heatmap/intensity':
       return {
@@ -307,17 +331,50 @@ export function reducer(state: AppState, action: Action): AppState {
       return next;
     }
 
+    case 'tracks/retry':
+      if (state.mapId !== action.mapId) return state;
+      return {
+        ...state,
+        tracksError: null,
+        trackRetryToken: state.trackRetryToken + 1,
+      };
+
     case 'tracks/loading':
-      return { ...state, tracksLoading: action.mapId, tracksError: null };
+      if (state.mapId !== action.mapId) return state;
+      return {
+        ...state,
+        tracksLoading: { mapId: action.mapId, requestId: action.requestId },
+        tracksError: null,
+      };
 
     case 'tracks/loaded': {
       const tracks = new Map(state.tracks);
       tracks.set(action.mapId, action.tracks);
-      return { ...state, tracks, tracksLoading: null };
+      const isActiveRequest =
+        state.tracksLoading?.mapId === action.mapId &&
+        state.tracksLoading.requestId === action.requestId;
+      return {
+        ...state,
+        tracks,
+        ...(isActiveRequest ? { tracksLoading: null, tracksError: null } : {}),
+      };
     }
 
-    case 'tracks/failed':
-      return { ...state, tracksLoading: null, tracksError: action.error };
+    case 'tracks/failed': {
+      const isActiveRequest =
+        state.tracksLoading?.mapId === action.mapId &&
+        state.tracksLoading.requestId === action.requestId;
+      if (!isActiveRequest) return state;
+      return {
+        ...state,
+        tracksLoading: null,
+        tracksError: {
+          mapId: action.mapId,
+          requestId: action.requestId,
+          error: action.error,
+        },
+      };
+    }
 
     default:
       return state;
@@ -363,23 +420,41 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   // change re-runs the effect, and the cleanup would cancel the very request it just
   // started. A ref also survives StrictMode's double-invoke, so the fetch happens once.
   //
-  // There is no cancellation because the result is keyed by map and merely populates a
-  // cache: a late arrival is still correct, so there is no stale-write hazard.
-  const { mapId, tracks } = state;
-  const requestedRef = useRef<Set<MapId>>(new Set());
+  // Late successes may still populate their map's cache, but request ids prevent them
+  // from clearing the loading/error state for a different active request.
+  const { mapId, tracks, dataset, trackRetryToken } = state;
+  const requestedRef = useRef<Map<MapId, number>>(new Map());
+  const requestSequenceRef = useRef(0);
 
   useEffect(() => {
-    if (!mapId || tracks.has(mapId) || requestedRef.current.has(mapId)) return;
-    requestedRef.current.add(mapId);
-    dispatch({ type: 'tracks/loading', mapId });
-    loadMapTracks(mapId)
-      .then((loaded) => dispatch({ type: 'tracks/loaded', mapId, tracks: loaded }))
+    if (!mapId || !dataset || tracks.has(mapId)) return;
+
+    const existingRequest = requestedRef.current.get(mapId);
+    if (existingRequest !== undefined) {
+      dispatch({ type: 'tracks/loading', mapId, requestId: existingRequest });
+      return;
+    }
+
+    const config = dataset.mapsById.get(mapId)?.config;
+    if (!config) return;
+
+    const requestId = ++requestSequenceRef.current;
+    requestedRef.current.set(mapId, requestId);
+    dispatch({ type: 'tracks/loading', mapId, requestId });
+    loadMapTracks(mapId, config, dataset.coordinateScale)
+      .then((loaded) => {
+        if (requestedRef.current.get(mapId) === requestId) {
+          requestedRef.current.delete(mapId);
+        }
+        dispatch({ type: 'tracks/loaded', mapId, requestId, tracks: loaded });
+      })
       .catch((cause: unknown) => {
-        // Allow a retry to re-request this map.
-        requestedRef.current.delete(mapId);
-        dispatch({ type: 'tracks/failed', error: toLoadError(cause) });
+        if (requestedRef.current.get(mapId) === requestId) {
+          requestedRef.current.delete(mapId);
+        }
+        dispatch({ type: 'tracks/failed', mapId, requestId, error: toLoadError(cause) });
       });
-  }, [mapId, tracks]);
+  }, [mapId, tracks, dataset, trackRetryToken]);
 
   return (
     <StateContext.Provider value={state}>
