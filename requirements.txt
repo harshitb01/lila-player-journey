@@ -1,0 +1,7 @@
+# Offline preprocessing and analysis tools. Keep these pinned so that
+# `build_data.py`, `coordinate_validation.py`, and `analyze_insights.py` are
+# reproducible from a clean Python environment.
+numpy==2.5.2
+pandas==3.0.5
+pyarrow==25.0.1
+Pillow==12.3.0

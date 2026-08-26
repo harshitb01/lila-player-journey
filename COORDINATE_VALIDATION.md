@@ -13,6 +13,7 @@ npx vitest run
 
 | Artefact | Path |
 |---|---|
+| Authoritative map constants | [`map-config.json`](map-config.json) |
 | Transform (browser) | [`src/utils/coordinates.ts`](src/utils/coordinates.ts) |
 | Unit tests (47) | [`src/utils/coordinates.test.ts`](src/utils/coordinates.test.ts) |
 | Parity tests (5) | [`src/utils/coordinates.parity.test.ts`](src/utils/coordinates.parity.test.ts) |
@@ -23,7 +24,8 @@ npx vitest run
 
 ## 1. The transform under test
 
-Implemented in isolation, dependency-free, with **no clamping anywhere**:
+Implemented as pure formula functions, with constants loaded from `map-config.json` and
+**no clamping anywhere**:
 
 ```
 u = (x - originX) / scale
@@ -33,7 +35,7 @@ pixelX = u * size
 pixelY = (1 - v) * size
 ```
 
-Baseline constants, transcribed verbatim from the dataset README:
+Baseline constants, transcribed from the dataset README into the shared map contract:
 
 | Map | scale | originX | originZ |
 |---|---:|---:|---:|

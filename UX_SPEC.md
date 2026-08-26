@@ -50,12 +50,12 @@ is contextual and absent until something is selected.
 │ 61,013 points        │                                                                   │
 │                      │                                                                   │
 │ ─ HEATMAP ─────────  │                                                                   │
-│ ◉ Traffic (dwell)    │                                                                   │
+│ ◉ Movement samples   │                                                                   │
 │ ○ Kills        2,379 │                                                                   │
 │ ○ Deaths         739 │                                                                   │
 │ ○ Loot        11,632 │                M  A  P     C  A  N  V  A  S                        │
 │ ○ None               │                                                                   │
-│ ☐ Highlight unvisited│                (fills every remaining pixel)                       │
+│ ○ Low Activity       │                (fills every remaining pixel)                       │
 │   radius  ──●─────   │                                                                   │
 │                      │                                                                   │
 │ ─ EVENTS ──────────  │                                                                   │
@@ -159,35 +159,30 @@ is better answered by a bar chart than by shading on the map itself.
 
 ## 5. Heatmap controls
 
-Four layers, mutually exclusive (radio, not checkbox — two overlaid density fields are unreadable):
+Six modes, mutually exclusive (two overlaid density fields are unreadable):
 
 | Layer | Source events | Label shown |
 |---|---|---|
-| **Traffic** | `Position` + `BotPosition` | "Traffic (dwell)" |
+| **Movement** | `Position` + `BotPosition` | "Movement samples" |
 | **Kills** | `Kill` + `BotKill` | "Kills" |
 | **Deaths** | `Killed` + `BotKilled` + `KilledByStorm` | "Deaths" |
 | **Loot** | `Loot` | "Loot" |
+| **Low Activity** | inverse smoothed movement density inside observed envelope | "Low Activity" |
 | **None** | — | turns shading off to read the artwork |
 
-Only **two** knobs, both with sensible defaults: a **radius** slider and the layer choice.
-Bin size is derived from radius; intensity is auto-normalised to the current filter's maximum.
-Over-controlling a heatmap is a common failure — the designer wants an answer, not a
-configuration exercise.
+The only additional control is intensity. Smoothing is fixed per layer and intensity is
+normalised to the current filter's distribution.
 
-**"Traffic (dwell)" is named honestly.** Sampling is uniform at ~5 s, so a bin count is
-time-spent-in-area, not throughput. Calling it "traffic" without qualification would invite a
-wrong reading; the legend states `dwell ≈ samples × 5s`.
+**"Movement samples" is named literally.** A bin count is the number of recorded movement
+samples under the export's sampling behavior, not a promise of normalized time spent.
 
-### Highlight unvisited — the "ignored areas" answer
+### Low Activity — the cautious sparse-telemetry view
 
-A checkbox that inverts the question: shade every bin **inside the playable area** with zero
-traffic. This directly answers the assignment's fourth question, and it is the feature a generic
-analytics dashboard never has, because dead space is invisible when you only plot what happened.
+This mode inverts smoothed recorded movement density inside the observed telemetry envelope. It
+helps locate relatively sparse areas without claiming those areas are playable or avoided.
 
-Honesty requirement: unvisited ≠ unplayable. The measured play area covers only 46–57% of each
-minimap's square, much of which is out-of-bounds by construction. The layer therefore shades only
-within the observed play envelope and labels itself *"no recorded traffic — may be unplayable
-terrain"*.
+The observed envelope is a rectangular bound derived from telemetry, not authoritative playable
+geometry. Zero samples can reflect inaccessible terrain, export coverage, or cohort filters.
 
 ---
 
@@ -428,7 +423,7 @@ die, and where the storm kills them.
 | Immediately visible | Why |
 |---|---|
 | The map, at full size, correctly oriented | It is the subject |
-| Traffic (dwell) heatmap | "Understand overall movement" with no interaction |
+| Movement-sample heatmap | "Understand overall movement" with no interaction |
 | Death + storm markers | Sparse, high-signal, the designer's first question |
 | Sample size (journeys / matches / points) | Never let a filtered view read as the whole |
 | Every layer's event count | Magnitude before commitment |
@@ -442,7 +437,7 @@ die, and where the storm kills them.
 | Change map / date / actor | Top bar |
 | Switch heatmap layer | Left rail radio |
 | Show kills or loot markers | Left rail checkbox |
-| Highlight unvisited area | Left rail checkbox |
+| Low Activity area | Left rail heatmap mode |
 | See individual paths | Select a match, or filter to ≤25 journeys |
 | Inspect a point or event | Hover |
 | Investigate a region | **Shift + drag** marquee on the canvas |

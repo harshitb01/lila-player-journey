@@ -346,11 +346,11 @@ for label, codes in [("Storm deaths", STORM), ("Non-storm deaths", DEATHS),
     if len(sub) == 0:
         print(f"\n{label}: n=0, skipped")
         continue
-    dist = sub.quartile.value_counts(normalize=True).sort_index() * 100
     n = len(sub)
     print(f"\n{label} (n={n}):")
-    for q, pct in dist.items():
-        print(f"  {q}: {pct:5.1f}%  (n={int(pct/100*n)})")
+    counts = sub.quartile.value_counts().sort_index()
+    for q, count in counts.items():
+        print(f"  {q}: {100*count/n:5.1f}%  (n={count})")
     print(f"  baseline if uniform over time: 25.0% per quartile")
 
 # ========================================================================================

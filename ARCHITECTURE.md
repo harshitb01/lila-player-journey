@@ -5,7 +5,7 @@
 React 19 + TypeScript + Vite, Tailwind, HTML Canvas 2D for rendering, `useReducer` +
 Context for state (no Redux/Zustand — state is one dataset, a few filters, and a track
 cache; nothing here needs a library). Python 3 (pandas/pyarrow) is an **offline build
-tool only** — it never runs in the browser or on a server. Vitest: 195 tests, 10 files.
+tool only** — it never runs in the browser or on a server. Vitest: 204 tests, 11 files.
 No backend, no database.
 
 ## Data flow
@@ -43,15 +43,18 @@ one object per point — 87,599 rows scanned on every filter change needs to sta
 
 ## Coordinate transformation — and how it was validated
 
-`worldToUv`/`uvToPixel` implement `u=(x-originX)/scale`, shared verbatim by the Python
-pipeline and the TypeScript renderer. Two independent validation passes: (1) offline —
+`map-config.json` is the authoritative projection contract. Both Python tools and
+TypeScript load it; the pipeline emits the active projection into `maps.json`, and the
+runtime uses that emitted projection plus `manifest.coordinateScale` when decoding
+tracks. `worldToUv`/`uvToPixel` implement `u=(x-originX)/scale`. Two validation passes:
+(1) offline —
 rendered all 89,104 real points over each minimap, confirmed 100% land inside [0,1] UV,
 checked orientation against the README's worked example (`COORDINATE_VALIDATION.md`);
 (2) **cross-language parity test** — `scripts/coordinate_validation.py` samples 600 real
 points, runs the Python projection, writes a fixture; `coordinates.parity.test.ts`
 asserts the TypeScript projection matches to floating-point tolerance. This exists
-because the two implementations could silently drift while both test suites still pass
-individually — parity is the only thing that catches that.
+because the formula implementations could silently drift while both test suites still
+pass individually. Projection constants themselves are no longer duplicated.
 
 ## Human/bot detection
 
@@ -62,8 +65,9 @@ journeys. Both labels are retained per journey — nothing is discarded.
 
 ## Timeline / playback
 
-Pure and stateless: at time `t`, a journey's visible slice is found by **binary search**
-on its pre-sorted `tRel` array — no per-frame scan. The only `requestAnimationFrame`
+Pure and stateless: at time `t`, a journey's visible slice cutoff is found by **binary
+search** on its pre-sorted `tRel` array. Rendering still walks the visible prefix to
+construct route geometry. The only `requestAnimationFrame`
 loop in the app is the playback clock; it writes time into a ref and calls the draw
 function directly, publishing to React at ~10 Hz rather than 60 Hz, so scrubbing never
 re-triggers the filter/selection memoization.
@@ -71,24 +75,29 @@ re-triggers the filter/selection memoization.
 ## Canvas rendering — why Canvas
 
 The scene is tens of thousands of points (up to 59,847 on Ambrose Valley) redrawn on
-pan, filter changes, and 60fps playback — SVG/DOM would mean that many live nodes. Each
-actor cohort batches into one `Path2D`, stroked once, not once per journey. Humans and
-bots differ by **line dash and weight**, not color alone.
+filter changes and 60fps playback — SVG/DOM would mean that many live nodes. In Auto
+mode, cohort routes are hidden above 25 visible journeys so heatmaps and events remain
+legible; users can explicitly Show/Hide them, and a selected route stays visible. When
+drawn, each actor cohort batches into one `Path2D`. Humans and bots differ by **line
+dash and weight**, not color alone.
 
 ## Heatmap strategy
 
 A plain 160×160 grid in UV space, box-blurred (2 passes), rendered to an offscreen
-canvas and scaled up — not a third-party library, since points already live in the same
-UV space as rendering, so alignment is automatic rather than a second coordinate system
-to keep in sync. Rebuilt only on filter/mode change, **never** on `playback.time` — it's
-standing context, not a per-frame recomputation.
+canvas and scaled up. Point-count layers cover recorded movement samples, kills, deaths,
+and loot. Low Activity inverses smoothed movement density only inside the map's observed
+telemetry envelope; it deliberately does not treat zero telemetry as player avoidance or
+evidence that terrain is playable. Layers rebuild only on filter/mode change, **never** on
+`playback.time`.
 
 ## Why match-level (per-map) data loading
 
 Tracks are fetched **per map**, lazily, on map selection — not per-match, not all three
 maps upfront. A match isn't a separate resource; its journeys already live in its map's
 file, so selecting a match is a client-side filter, not a new request. Three cacheable
-requests total, versus one oversized bundle or hundreds of tiny per-match ones.
+requests total, versus one oversized bundle or hundreds of tiny per-match ones. Each
+request carries a monotonically increasing id: late results may populate their keyed
+cache entry but cannot clear or replace another map's active loading/error state.
 
 ## Why no backend or database
 

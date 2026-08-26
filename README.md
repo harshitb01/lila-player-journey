@@ -12,10 +12,12 @@ map, date, match, and actor, with match playback.
   coordinates
 - Distinguish humans from bots by line style (dash + weight), never color alone
 - Mark kills, deaths, storm deaths, and loot as distinct shapes, each with a tooltip
-- Filter by map, date, match, and actor type — filters cascade (only valid combinations
-  are offered)
+- Filter by map, date, match, and actor type — filters cascade, and every surviving
+  match is searchable/selectable
 - Scrub or play back a match on a real clock (0.5×–4×), with deterministic seeking
-- Traffic / kill / death heatmaps as a spatial grid, decoupled from the playhead
+- Movement-sample / kill / death / loot heatmaps plus a caveated Low Activity overlay,
+  decoupled from the playhead
+- Keep large cohorts readable with explicit Auto / Show / Hide route controls
 - Shift-drag a region on the map to get exact traffic/kill/death/storm counts for that
   area
 - A visible data-quality panel — every dedup, actor-classification, and partial-roster
@@ -38,18 +40,19 @@ map, date, match, and actor, with match playback.
 | Area | What it does |
 |---|---|
 | Map workspace | Canvas-rendered minimap with paths, event markers, and heatmap layered together; pan-free, fit-to-container, correct aspect per map |
-| Filters | Map tabs, multi-select date picker, human/bot toggles, match drill-down — all cascading off one shared selection |
+| Filters | Map tabs, multi-select date picker, human/bot toggles, searchable match drill-down — all cascading off one shared selection |
 | Player inspector | Click a route or pick from the list: actor id, human/bot, observed duration, kills, deaths, loot, and an explicitly-labeled *estimated* travel distance |
 | Event layer | 6 distinct marker shapes (not just colors) for Kill/Killed/BotKill/BotKilled/KilledByStorm/Loot, with hover tooltips showing exact time and position |
 | Timeline & playback | Play/pause/reset, seek slider, 0.5×–4× speed, deterministic at any seek position — the frame at time *t* never depends on how playback got there |
-| Heatmaps | Traffic, kills, deaths as a blurred UV-space grid; intensity slider; legend explains it's relative shading, not a statistical rate |
+| Heatmaps | Recorded movement samples, kills, deaths, loot, and Low Activity inside the observed telemetry envelope; relative shading, never literal time spent |
+| Routes | Auto hides cohort paths above 25 journeys; Show/Hide overrides are explicit and a selected route always remains visible |
 | Region inspector | Shift-drag a rectangle for exact counts and % share of the map total in that area |
 | Data-quality panel | Row-reconciliation numbers and every anomaly the pipeline flagged, always one click away |
 
 ## Tech stack
 
 React 19 · TypeScript · Vite · Tailwind CSS · HTML Canvas 2D for rendering ·
-`useReducer` + Context for state (no external state library) · Vitest (195 tests) ·
+`useReducer` + Context for state (no external state library) · Vitest (204 tests) ·
 Python 3 + pandas/pyarrow for the **offline** data pipeline only.
 
 ## Architecture summary
@@ -85,7 +88,7 @@ this works immediately — no preprocessing required to run the app.
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # vitest — 195 tests
+npm test            # vitest — 204 tests
 npm run build        # typecheck + production build to dist/
 npm run preview      # serve the production build locally
 ```
@@ -98,7 +101,7 @@ build time by Vite — `public/data/` is a committed, static artifact.
 ```bash
 python -m venv .venv
 .venv/Scripts/activate        # .venv\Scripts\Activate.ps1 on Windows PowerShell
-pip install pandas pyarrow numpy Pillow
+python -m pip install -r requirements.txt
 
 python scripts/build_data.py  # data/raw/ -> public/data/
 ```
@@ -111,9 +114,11 @@ dropping data. Full row-reconciliation and anomaly report in
 
 ## Deployment
 
-Static output only (`npm run build` → `dist/`) — deployable to any static host or CDN
-(Vercel, Netlify, GitHub Pages, Cloudflare Pages). `base: './'` in `vite.config.ts`
-means it works from any sub-path. No server process, no environment-specific build step.
+Static output only (`npm run build` → `dist/`) — deployable to any static host or CDN.
+`vercel.json` uses the lockfile-backed `npm ci` install, runs the verified production
+build, and publishes `dist/`; `.vercelignore` excludes raw/offline analysis inputs from
+CLI uploads. `base: './'` keeps assets/data working from a hosting sub-path. No server
+process or environment variables are required.
 
 ## Environment variables
 
@@ -157,6 +162,8 @@ build or run time.
 │   ├── analysis/             Journey-level stats (travel estimate, summaries)
 │   └── utils/                 Validated coordinate transform + cross-language parity fixture
 ├── docs/screenshots/         README images (real app captures)
+├── map-config.json           Authoritative projection constants for Python + TypeScript
+├── requirements.txt          Pinned Python dependencies for offline pipeline/reports
 ├── ARCHITECTURE.md           Stack, data flow, and every major tradeoff
 ├── DATA_ANALYSIS.md          Full forensic audit of the raw dataset
 ├── DATA_QUALITY_DECISIONS.md Dedup and actor-classification decisions, with evidence

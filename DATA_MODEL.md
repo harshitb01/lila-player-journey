@@ -280,12 +280,13 @@ Three layers are defined over the same arrays by event-code mask:
 
 | Layer | Event codes | Points |
 |---|---|---:|
-| Traffic (dwell) | `Position`, `BotPosition` | 72,849 |
+| Recorded movement samples | `Position`, `BotPosition` | 72,849 |
 | Kills | `Kill`, `BotKill` | 2,379 |
 | Deaths | `Killed`, `BotKilled`, `KilledByStorm` | 739 |
 
-Traffic is labelled **dwell** deliberately: sampling is uniform at ~5 s, so a count per bin is
-time-in-area, not throughput.
+The traffic layer is labelled **recorded movement samples**. Counts reflect the export's sampling
+behavior and support relative spatial comparison, but are not literal time spent or normalized
+dwell time.
 
 ---
 
