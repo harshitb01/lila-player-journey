@@ -4,6 +4,15 @@ Audit date: 2026-08-26
 Audited revision: `b1fdd71cee2013fbd546fa800bc24195268330ba` (`master`, matching `origin/master`)  
 Scope: repository documentation, application source, scripts, tests, raw/processed data contracts, generated artifacts, screenshots, and Git state.
 
+> **Status note (post-audit):** Commits `2e4324e` and `64cb770`, made after this audit, fix
+> every HIGH-severity item below: track-load retry now actually retries, the minimap no
+> longer shows a stale image on map switch, coordinate scale/config no longer drifts
+> (`map-config.json` is now the single source), and `INSIGHTS.md` was rewritten so every
+> number is directly reproducible from `scripts/analyze_insights.py`'s current output
+> (verified by re-running it). The cohort-paths-always-drawn MEDIUM finding is also fixed.
+> This report is kept as a dated audit trail, not a current bug list — check `git log`
+> for what has changed since `b1fdd71`.
+
 ## Audit basis and verification
 
 This report describes the checked-in implementation, not the intended design in isolation. Claims in `README.md`, `ARCHITECTURE.md`, `DATA_MODEL.md`, `UX_SPEC.md`, and `INSIGHTS.md` were checked against the code and generated data.

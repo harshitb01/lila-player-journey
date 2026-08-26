@@ -4,7 +4,7 @@ A level-design tool that turns raw match telemetry from **LILA BLACK** into an
 interactive map view — player routes, combat, deaths, loot, and heatmaps — filterable by
 map, date, match, and actor, with match playback.
 
-**Live demo:** _[deployment URL — pending final deploy]_
+**Live demo:** https://lila-player-journey-kwr0v2hoh-harry-d818.vercel.app/
 
 ## Key capabilities
 
@@ -33,21 +33,21 @@ map, date, match, and actor, with match playback.
 
 ![Selected match on the minimap, artwork only](docs/screenshots/match-playback.png)
 
-*(Both are direct captures of the running app's canvas, not mockups.)*
+_(Both are direct captures of the running app's canvas, not mockups.)_
 
 ## Feature overview
 
-| Area | What it does |
-|---|---|
-| Map workspace | Canvas-rendered minimap with paths, event markers, and heatmap layered together; pan-free, fit-to-container, correct aspect per map |
-| Filters | Map tabs, multi-select date picker, human/bot toggles, searchable match drill-down — all cascading off one shared selection |
-| Player inspector | Click a route or pick from the list: actor id, human/bot, observed duration, kills, deaths, loot, and an explicitly-labeled *estimated* travel distance |
-| Event layer | 6 distinct marker shapes (not just colors) for Kill/Killed/BotKill/BotKilled/KilledByStorm/Loot, with hover tooltips showing exact time and position |
-| Timeline & playback | Play/pause/reset, seek slider, 0.5×–4× speed, deterministic at any seek position — the frame at time *t* never depends on how playback got there |
-| Heatmaps | Recorded movement samples, kills, deaths, loot, and Low Activity inside the observed telemetry envelope; relative shading, never literal time spent |
-| Routes | Auto hides cohort paths above 25 journeys; Show/Hide overrides are explicit and a selected route always remains visible |
-| Region inspector | Shift-drag a rectangle for exact counts and % share of the map total in that area |
-| Data-quality panel | Row-reconciliation numbers and every anomaly the pipeline flagged, always one click away |
+| Area                | What it does                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Map workspace       | Canvas-rendered minimap with paths, event markers, and heatmap layered together; pan-free, fit-to-container, correct aspect per map                     |
+| Filters             | Map tabs, multi-select date picker, human/bot toggles, searchable match drill-down — all cascading off one shared selection                             |
+| Player inspector    | Click a route or pick from the list: actor id, human/bot, observed duration, kills, deaths, loot, and an explicitly-labeled _estimated_ travel distance |
+| Event layer         | 6 distinct marker shapes (not just colors) for Kill/Killed/BotKill/BotKilled/KilledByStorm/Loot, with hover tooltips showing exact time and position    |
+| Timeline & playback | Play/pause/reset, seek slider, 0.5×–4× speed, deterministic at any seek position — the frame at time _t_ never depends on how playback got there        |
+| Heatmaps            | Recorded movement samples, kills, deaths, loot, and Low Activity inside the observed telemetry envelope; relative shading, never literal time spent     |
+| Routes              | Auto hides cohort paths above 25 journeys; Show/Hide overrides are explicit and a selected route always remains visible                                 |
+| Region inspector    | Shift-drag a rectangle for exact counts and % share of the map total in that area                                                                       |
+| Data-quality panel  | Row-reconciliation numbers and every anomaly the pipeline flagged, always one click away                                                                |
 
 ## Tech stack
 
